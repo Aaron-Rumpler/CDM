@@ -45,22 +45,22 @@ int main() {
 	sigfillset(&sig_action.sa_mask);
 	sig_action.sa_flags = 0;
 	
-	sigset_t sig_mask, old_sig_mask;
-	
+	sigset_t sig_mask;
 	sigemptyset(&sig_mask);
 	
 	for (unsigned int i = 0; i < sizeof(EXIT_SIGNALS) / sizeof(EXIT_SIGNALS[0]); i++) {
 		int signal_num = EXIT_SIGNALS[i];
-		struct sigaction old_sig_action;
 		
+		struct sigaction old_sig_action;
 		sigaction(signal_num, NULL, &old_sig_action);
 		
-		if (old_sig_action.sa_handler != SIG_IGN) {
+		if (old_sig_action.sa_handler == SIG_DFL) {
 			sigaction(signal_num, &sig_action, NULL);
 			sigaddset(&sig_mask, signal_num);
 		}
 	}
 	
+	sigset_t  old_sig_mask;
 	sigprocmask(SIG_BLOCK, &sig_mask, &old_sig_mask);
 	
 	enableCDM(true);
