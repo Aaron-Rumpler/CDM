@@ -2,6 +2,7 @@
 #include <stdbool.h>
 #include <signal.h>
 #include "cdm.h"
+#include "sleep_assertion.h"
 
 static const int EXIT_SIGNALS[] = {
 		SIGHUP,
@@ -38,6 +39,10 @@ static void signal_handler(__attribute__((unused)) int signal) {
 }
 
 int main() {
+	if (!createSleepAssertion()) {
+		return EXIT_FAILURE;
+	}
+	
 	atexit(exit_handler);
 	
 	struct sigaction sig_action;
