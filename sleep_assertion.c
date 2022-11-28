@@ -7,7 +7,7 @@
 
 #define ASSERTION_NAME "cdm command-line tool"
 
-bool createSleepAssertion() {
+bool createSleepAssertion(void) {
 	IOPMAssertionID assertionID = 0;
 	
 	IOReturn result = IOPMAssertionCreateWithDescription(kIOPMAssertionTypePreventUserIdleSystemSleep,

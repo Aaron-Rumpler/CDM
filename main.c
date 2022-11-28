@@ -30,7 +30,7 @@ static const int EXIT_SIGNALS[] = {
 
 static volatile bool keep_running = true;
 
-static void exit_handler() {
+static void exit_handler(void) {
 	enableCDM(false);
 }
 
@@ -38,7 +38,7 @@ static void signal_handler(__attribute__((unused)) int signal) {
 	keep_running = false;
 }
 
-int main() {
+int main(void) {
 	if (!createSleepAssertion()) {
 		return EXIT_FAILURE;
 	}

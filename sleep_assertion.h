@@ -4,6 +4,6 @@
 #include <stddef.h>
 #include <stdbool.h>
 
-extern bool createSleepAssertion();
+extern bool createSleepAssertion(void);
 
 #endif
