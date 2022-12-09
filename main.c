@@ -1,10 +1,16 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <signal.h>
+#include <dispatch/dispatch.h>
 #include "cdm.h"
 #include "sleep_assertion.h"
 
-static const int EXIT_SIGNALS[] = {
+#define CDM_INTERVAL_MSEC 1000
+#define CDM_LEEWAY_MSEC 100
+
+#define EXIT_SIGNALS_COUNT 21
+
+static const int EXIT_SIGNALS[EXIT_SIGNALS_COUNT] = {
 		SIGHUP,
 		SIGINT,
 		SIGQUIT,
@@ -28,51 +34,52 @@ static const int EXIT_SIGNALS[] = {
 		SIGUSR2,
 };
 
-static volatile bool keep_running = true;
-
-static void exit_handler(void) {
-	enableCDM(false);
-}
-
-static void signal_handler(__attribute__((unused)) int signal) {
-	keep_running = false;
-}
+static dispatch_queue_main_t main_queue;
+static dispatch_source_t exit_dispatch_sources[EXIT_SIGNALS_COUNT];
+static dispatch_source_t cdm_timer;
+static dispatch_block_t exit_handler;
 
 int main(void) {
+	main_queue = dispatch_get_main_queue();
+	
 	if (!createSleepAssertion()) {
 		return EXIT_FAILURE;
 	}
 	
-	atexit(exit_handler);
-	
-	struct sigaction sig_action;
-	sig_action.sa_handler = signal_handler;
-	sigfillset(&sig_action.sa_mask);
-	sig_action.sa_flags = 0;
-	
-	sigset_t sig_mask;
-	sigemptyset(&sig_mask);
-	
-	for (unsigned int i = 0; i < sizeof(EXIT_SIGNALS) / sizeof(EXIT_SIGNALS[0]); i++) {
-		int signal_num = EXIT_SIGNALS[i];
+	exit_handler = ^{
+		dispatch_release(cdm_timer);
 		
-		struct sigaction old_sig_action;
-		sigaction(signal_num, NULL, &old_sig_action);
-		
-		if (old_sig_action.sa_handler == SIG_DFL) {
-			sigaction(signal_num, &sig_action, NULL);
-			sigaddset(&sig_mask, signal_num);
+		for (size_t i = 0; i < EXIT_SIGNALS_COUNT; i++) {
+			dispatch_source_t exit_dispatch_source = exit_dispatch_sources[i];
+			
+			dispatch_release(exit_dispatch_source);
 		}
+		
+		enableCDM(false);
+		
+		exit(EXIT_SUCCESS);
+	};
+	
+	for (size_t i = 0; i < EXIT_SIGNALS_COUNT; i++) {
+		int exit_signal = EXIT_SIGNALS[i];
+		
+		signal(exit_signal, SIG_IGN);
+		
+		dispatch_source_t exit_dispatch_source = dispatch_source_create(DISPATCH_SOURCE_TYPE_SIGNAL, exit_signal, 0, main_queue);
+		dispatch_source_set_event_handler(exit_dispatch_source, exit_handler);
+		
+		exit_dispatch_sources[i] = exit_dispatch_source;
+		
+		dispatch_resume(exit_dispatch_source);
 	}
 	
-	sigset_t  old_sig_mask;
-	sigprocmask(SIG_BLOCK, &sig_mask, &old_sig_mask);
+	cdm_timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, main_queue);
+	dispatch_source_set_timer(cdm_timer, DISPATCH_TIME_NOW, CDM_INTERVAL_MSEC * NSEC_PER_MSEC, CDM_LEEWAY_MSEC * NSEC_PER_MSEC);
+	dispatch_source_set_event_handler(cdm_timer, ^{
+		enableCDM(true);
+	});
 	
-	enableCDM(true);
+	dispatch_resume(cdm_timer);
 	
-	while (keep_running) {
-		sigsuspend(&old_sig_mask);
-	}
-	
-	return EXIT_SUCCESS;
+	dispatch_main();
 }
